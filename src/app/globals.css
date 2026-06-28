@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-green: #2e5a44;      /* Deep Green (포인트 색상) */
+  --color-brand-green-hover: #203f2f;
+  --color-brand-sage: #eef5f1;       /* Soft Green Accent */
+  --color-brand-orange: #d9744b;     /* Terracotta Warm accent */
+  --color-brand-beige: #fbf9f4;      /* Warm Ivory / Light Beige (배경색) */
+  --color-brand-brown: #3d2b1f;      /* 정갈한 다크 브라운 (텍스트 색상) */
+  --color-brand-charcoal: #3d2b1f;   /* 정갈한 다크 브라운 (텍스트 색상 호환용) */
+  --color-brand-brown-light: #705846; /* 보조 브라운 색상 */
+  
+  --font-sans: var(--font-noto), sans-serif;
+  --font-display: var(--font-outfit), var(--font-noto), sans-serif;
+  --font-serif: var(--font-outfit), 'Georgia', serif;
+}
+
+:root {
+  --background: #fbf9f4;
+  --foreground: #3d2b1f;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-noto), sans-serif;
+}
+
+/* Glassmorphism utility for clean premium look */
+.glass-nav {
+  background: rgba(251, 249, 246, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(27, 77, 62, 0.08);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(27, 77, 62, 0.05);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.02);
+}
