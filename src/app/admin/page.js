@@ -10,7 +10,20 @@ export default function AdminDashboard() {
   const [adminProfile, setAdminProfile] = useState(null);
   
   // Tab controller for CMS sections
-  const [cmsTab, setCmsTab] = useState("menus"); // "menus" | "notices" | "users"
+  const [cmsTab, setCmsTab] = useState("menus"); // "menus" | "notices" | "users" | "inventory"
+
+  // Inventory management states
+  const [inventory, setInventory] = useState([]);
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [inventoryActionType, setInventoryActionType] = useState("add"); // "add" | "consume" | "create"
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [inventoryQty, setInventoryQty] = useState("");
+  const [inventoryCost, setInventoryCost] = useState("");
+  
+  // Create item form states
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemUnit, setNewItemUnit] = useState("kg");
+  const [newItemMinQty, setNewItemMinQty] = useState(10);
 
   // CMS lists state
   const [posts, setPosts] = useState([]);
@@ -101,6 +114,34 @@ export default function AdminDashboard() {
     
     checkAdminAuth();
   }, []);
+
+  const defaultInventory = [
+    { id: 1, name: "🥬 유기농 로메인 상추", unit: "kg", purchased: 120, consumed: 98, minQty: 15, unitPrice: 8500 },
+    { id: 2, name: "🥑 프리미엄 아보카도", unit: "개", purchased: 300, consumed: 260, minQty: 50, unitPrice: 2200 },
+    { id: 3, name: "🍗 닭가슴살 슬라이스", unit: "kg", purchased: 80, consumed: 72, minQty: 10, unitPrice: 12000 },
+    { id: 4, name: "🍞 100% 통밀 브레드", unit: "봉지", purchased: 150, consumed: 138, minQty: 20, unitPrice: 4500 },
+    { id: 5, name: "🧀 훈제 연어 슬라이스", unit: "kg", purchased: 40, consumed: 31, minQty: 8, unitPrice: 28000 },
+    { id: 6, name: "🍅 유기농 대추방울토마토", unit: "kg", purchased: 60, consumed: 48, minQty: 12, unitPrice: 9000 },
+    { id: 7, name: "🥛 수제 리코타 치즈", unit: "kg", purchased: 25, consumed: 22, minQty: 5, unitPrice: 15000 },
+    { id: 8, name: "🫒 스페인산 엑스트라버진 올리브오일", unit: "병", purchased: 30, consumed: 18, minQty: 5, unitPrice: 19500 },
+  ];
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("local_inventory");
+      if (stored) {
+        setInventory(JSON.parse(stored));
+      } else {
+        localStorage.setItem("local_inventory", JSON.stringify(defaultInventory));
+        setInventory(defaultInventory);
+      }
+    }
+  }, []);
+
+  const saveInventory = (newInv) => {
+    setInventory(newInv);
+    localStorage.setItem("local_inventory", JSON.stringify(newInv));
+  };
 
   async function fetchPosts() {
     const { data } = await supabase.from("posts").select("*").order("id", { ascending: true });
@@ -428,11 +469,12 @@ export default function AdminDashboard() {
       </div>
 
       {/* 2. CMS Section Tab Navigator */}
-      <div className="flex border-b border-brand-green/15 gap-2">
+      <div className="flex border-b border-brand-green/15 gap-2 overflow-x-auto">
         {[
           { id: "menus", label: "🥦 메뉴 관리" },
           { id: "notices", label: "📢 공지사항 관리" },
           { id: "users", label: "👥 회원 관리" },
+          { id: "inventory", label: "📦 매장 재고 관리" },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -724,6 +766,318 @@ export default function AdminDashboard() {
             ) : (
               <div className="text-center py-10 text-brand-brown-light/70 text-xs">
                 데이터베이스에 조회되는 프로필 정보가 없습니다.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==================================================== */}
+        {/* [CMS Tab 4] Inventory Management */}
+        {/* ==================================================== */}
+        {cmsTab === "inventory" && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            {/* Inventory Overview Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-brand-green/10 shadow-xs flex flex-col justify-between h-[100px]">
+                <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">누적 매입액</span>
+                <span className="text-xl font-extrabold text-brand-brown">
+                  {inventory.reduce((acc, item) => acc + (item.purchased * item.unitPrice), 0).toLocaleString()}원
+                </span>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-brand-green/10 shadow-xs flex flex-col justify-between h-[100px]">
+                <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">누적 소진액</span>
+                <span className="text-xl font-extrabold text-brand-brown">
+                  {inventory.reduce((acc, item) => acc + (item.consumed * item.unitPrice), 0).toLocaleString()}원
+                </span>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-brand-green/10 shadow-xs flex flex-col justify-between h-[100px]">
+                <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">재고 자산 가치</span>
+                <span className="text-xl font-extrabold text-brand-green">
+                  {inventory.reduce((acc, item) => acc + ((item.purchased - item.consumed) * item.unitPrice), 0).toLocaleString()}원
+                </span>
+              </div>
+              {/* Warning Item Card */}
+              {(() => {
+                const warningCount = inventory.filter(item => (item.purchased - item.consumed) < item.minQty).length;
+                return (
+                  <div className={`p-5 rounded-2xl border shadow-xs flex flex-col justify-between h-[100px] transition-colors ${
+                    warningCount > 0 
+                      ? "bg-red-50/70 border-red-200 text-red-900" 
+                      : "bg-white border-brand-green/10 text-brand-brown"
+                  }`}>
+                    <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">재고 부족 품목</span>
+                    <span className="text-xl font-extrabold flex items-center gap-1.5">
+                      {warningCount > 0 ? `⚠️ ${warningCount}개 품목` : "🟢 지표 양호"}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Inventory List Card */}
+            <div className="p-6 rounded-2xl glass-card">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                <div>
+                  <h2 className="text-base font-bold text-brand-brown font-serif">
+                    📦 매장 원부재료 재고 현황
+                  </h2>
+                  <p className="text-[10px] text-brand-brown-light mt-0.5">
+                    매장의 부재료 매입량, 판매/출고로 인해 사라진 양, 그리고 현재 안전 재고 수준을 관리합니다.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setInventoryActionType("create");
+                    setSelectedItem(null);
+                    setNewItemName("");
+                    setNewItemUnit("kg");
+                    setNewItemMinQty(10);
+                    setInventoryCost("");
+                    setInventoryQty("");
+                    setShowInventoryModal(true);
+                  }}
+                  className="bg-brand-green hover:bg-brand-green-hover text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-brand-green/10 flex items-center gap-1 cursor-pointer"
+                >
+                  ➕ 신규 재고 품목 등록
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-brand-green/10 text-brand-brown-light/80 font-bold text-left">
+                      <th className="pb-3 text-left">품목명</th>
+                      <th className="pb-3 text-right">매입 단가</th>
+                      <th className="pb-3 text-right">총 매입량</th>
+                      <th className="pb-3 text-right">총 소진량</th>
+                      <th className="pb-3 text-right">현재 재고</th>
+                      <th className="pb-3 text-right">안전 재고</th>
+                      <th className="pb-3 text-center">재고 상태</th>
+                      <th className="pb-3 text-center">재고 조정</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {inventory.map((item) => {
+                      const currentStock = item.purchased - item.consumed;
+                      const isLowStock = currentStock < item.minQty;
+                      return (
+                        <tr key={item.id} className="hover:bg-brand-sage/20 transition-colors">
+                          <td className="py-4 font-bold text-brand-brown">{item.name}</td>
+                          <td className="py-4 text-right text-brand-brown-light">{item.unitPrice.toLocaleString()}원</td>
+                          <td className="py-4 text-right">{item.purchased} {item.unit}</td>
+                          <td className="py-4 text-right text-brand-brown-light">{item.consumed} {item.unit}</td>
+                          <td className="py-4 text-right font-extrabold text-brand-brown">
+                            {currentStock} {item.unit}
+                          </td>
+                          <td className="py-4 text-right text-brand-brown-light">{item.minQty} {item.unit}</td>
+                          <td className="py-4 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
+                              isLowStock 
+                                ? "bg-red-100 text-red-800 border border-red-200" 
+                                : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            }`}>
+                              {isLowStock ? "⚠️ 부족" : "🟢 정상"}
+                            </span>
+                          </td>
+                          <td className="py-4 text-center space-x-2">
+                            <button
+                              onClick={() => {
+                                setInventoryActionType("add");
+                                setSelectedItem(item);
+                                setInventoryQty("");
+                                setShowInventoryModal(true);
+                              }}
+                              className="bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
+                            >
+                              📥 입고(매입)
+                            </button>
+                            <button
+                              onClick={() => {
+                                setInventoryActionType("consume");
+                                setSelectedItem(item);
+                                setInventoryQty("");
+                                setShowInventoryModal(true);
+                              }}
+                              className="bg-orange-50 hover:bg-orange-655 text-brand-orange hover:text-white border border-brand-orange/20 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
+                            >
+                              📤 출고(소진)
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm("정말 이 품목을 재고 목록에서 삭제하시겠습니까?")) {
+                                  const updated = inventory.filter(x => x.id !== item.id);
+                                  saveInventory(updated);
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700 p-1 text-[10px] cursor-pointer font-bold"
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Inventory Adjustment Modal */}
+            {showInventoryModal && (
+              <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 animate-in fade-in duration-200">
+                <div className="bg-white rounded-2xl border border-brand-green/15 max-w-sm w-full p-6 space-y-6 shadow-2xl">
+                  {/* Modal Header */}
+                  <div>
+                    <h3 className="text-base font-bold text-brand-brown font-serif">
+                      {inventoryActionType === "create" && "➕ 신규 재고 품목 등록"}
+                      {inventoryActionType === "add" && `📥 [입고] ${selectedItem?.name}`}
+                      {inventoryActionType === "consume" && `📤 [출고] ${selectedItem?.name}`}
+                    </h3>
+                    <p className="text-[10px] text-brand-brown-light mt-0.5">
+                      {inventoryActionType === "create" && "매장에서 사용하는 원자재/식재료 품목 정보를 새롭게 등록합니다."}
+                      {inventoryActionType === "add" && "새로 매입하거나 구매해 매장에 입고한 수량을 기록합니다."}
+                      {inventoryActionType === "consume" && "판매나 유통기한 만료 등으로 매장에서 소진된 수량을 기록합니다."}
+                    </p>
+                  </div>
+
+                  {/* Form fields */}
+                  {inventoryActionType === "create" ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-brand-brown mb-1">품목명 *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="예: 🥬 신선한 양상추"
+                          value={newItemName}
+                          onChange={(e) => setNewItemName(e.target.value)}
+                          className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-brand-brown mb-1">단위 *</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="예: kg, 개, 봉지"
+                            value={newItemUnit}
+                            onChange={(e) => setNewItemUnit(e.target.value)}
+                            className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-brand-brown mb-1">매입 단가 (원) *</label>
+                          <input
+                            type="number"
+                            required
+                            placeholder="예: 5000"
+                            value={inventoryCost}
+                            onChange={(e) => setInventoryCost(e.target.value)}
+                            className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-brand-brown mb-1">초기 입고량 *</label>
+                          <input
+                            type="number"
+                            required
+                            placeholder="예: 50"
+                            value={inventoryQty}
+                            onChange={(e) => setInventoryQty(e.target.value)}
+                            className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-brand-brown mb-1">안전 재고 기준 *</label>
+                          <input
+                            type="number"
+                            required
+                            placeholder="예: 10"
+                            value={newItemMinQty}
+                            onChange={(e) => setNewItemMinQty(e.target.value)}
+                            className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-[10px] font-bold text-brand-brown mb-1">
+                        {inventoryActionType === "add" ? "입고(매입)할 수량" : "출고(소진)할 수량"} ({selectedItem?.unit}) *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        placeholder={`예: 10 (${selectedItem?.unit})`}
+                        value={inventoryQty}
+                        onChange={(e) => setInventoryQty(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                      />
+                    </div>
+                  )}
+
+                  {/* Actions buttons */}
+                  <div className="flex gap-2 justify-end pt-2">
+                    <button
+                      onClick={() => setShowInventoryModal(false)}
+                      className="bg-zinc-150 hover:bg-zinc-200 text-brand-brown font-semibold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+                    >
+                      닫기
+                    </button>
+                    <button
+                      onClick={() => {
+                        const qty = parseFloat(inventoryQty);
+                        if (isNaN(qty) || qty <= 0) {
+                          alert("올바른 수량을 입력해 주세요.");
+                          return;
+                        }
+                        
+                        if (inventoryActionType === "create") {
+                          if (!newItemName || !newItemUnit) {
+                            alert("모든 필수 값을 입력해 주세요.");
+                            return;
+                          }
+                          const cost = parseFloat(inventoryCost);
+                          const minQty = parseFloat(newItemMinQty);
+                          const newItem = {
+                            id: Date.now(),
+                            name: newItemName,
+                            unit: newItemUnit,
+                            purchased: qty,
+                            consumed: 0,
+                            minQty: isNaN(minQty) ? 10 : minQty,
+                            unitPrice: isNaN(cost) ? 0 : cost
+                          };
+                          saveInventory([...inventory, newItem]);
+                        } else {
+                          const updated = inventory.map(item => {
+                            if (item.id === selectedItem.id) {
+                              if (inventoryActionType === "add") {
+                                return { ...item, purchased: item.purchased + qty };
+                              } else {
+                                const newConsumed = item.consumed + qty;
+                                if (newConsumed > item.purchased) {
+                                  alert(`소진량이 전체 입고량(${item.purchased} ${item.unit})을 초과할 수 없습니다.`);
+                                  return item;
+                                }
+                                return { ...item, consumed: newConsumed };
+                              }
+                            }
+                            return item;
+                          });
+                          saveInventory(updated);
+                        }
+                        setShowInventoryModal(false);
+                      }}
+                      className="bg-brand-green hover:bg-brand-green-hover text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-brand-green/10 cursor-pointer"
+                    >
+                      저장 및 반영
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
