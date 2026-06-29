@@ -57,6 +57,13 @@ function AdminWritePage() {
           router.push("/login");
           return;
         }
+
+        // Strict admin email check
+        if (user.email !== "o1027770162@gmail.com" && user.email !== "admin@mottikitchen.com") {
+          alert("관리자 권한이 없습니다. 로그인 화면으로 이동합니다.");
+          router.push("/login");
+          return;
+        }
         setAdminUser(user);
 
         const { data: profile } = await supabase
@@ -65,10 +72,22 @@ function AdminWritePage() {
           .eq("id", user.id)
           .maybeSingle();
 
-        if (!profile || profile.role !== "admin") {
-          alert("관리자 권한이 없습니다. 로그인 화면으로 이동합니다.");
-          router.push("/login");
-          return;
+        if (user.email === "o1027770162@gmail.com") {
+          // Update database role to admin in background if not already
+          if (!profile || profile.role !== "admin") {
+            supabase.from("profiles").upsert({
+              id: user.id,
+              email: user.email,
+              role: "admin",
+              membership: profile?.membership || "premium"
+            }).then();
+          }
+        } else {
+          if (!profile || profile.role !== "admin") {
+            alert("관리자 권한이 없습니다. 로그인 화면으로 이동합니다.");
+            router.push("/login");
+            return;
+          }
         }
       }
 

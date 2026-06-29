@@ -22,16 +22,23 @@ export default function Header() {
         setIsAdmin(checkSimulatedAdmin());
         return;
       }
+
+      // Strict admin email check
+      if (currentUser.email !== "o1027770162@gmail.com" && currentUser.email !== "admin@mottikitchen.com") {
+        setIsAdmin(false);
+        return;
+      }
+
       try {
         const { data } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", currentUser.id)
           .maybeSingle();
-        setIsAdmin(checkSimulatedAdmin() || data?.role === "admin");
+        setIsAdmin(currentUser.email === "o1027770162@gmail.com" || checkSimulatedAdmin() || data?.role === "admin");
       } catch (e) {
         console.log("Error checking admin status:", e);
-        setIsAdmin(checkSimulatedAdmin());
+        setIsAdmin(currentUser.email === "o1027770162@gmail.com" || checkSimulatedAdmin());
       }
     };
 
