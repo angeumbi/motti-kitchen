@@ -35,6 +35,7 @@ export default function AdminDashboard() {
   const [editingRecipeIngredients, setEditingRecipeIngredients] = useState([]);
   const [saleMenuId, setSaleMenuId] = useState("");
   const [saleQty, setSaleQty] = useState("1");
+  const [editConsumedQty, setEditConsumedQty] = useState("");
 
   // CMS lists state
   const [posts, setPosts] = useState([]);
@@ -1118,6 +1119,24 @@ export default function AdminDashboard() {
                                 </button>
                                 <button
                                   onClick={() => {
+                                    setInventoryActionType("edit");
+                                    setSelectedItem(item);
+                                    setNewItemName(item.name);
+                                    setNewItemBulkUnit(item.bulkUnit.split('(')[0]);
+                                    setNewItemDetailUnit(item.detailUnit);
+                                    setNewItemFactor(String(item.conversionFactor));
+                                    setNewItemMinQty(item.minQty);
+                                    setInventoryCost(String(item.unitPrice));
+                                    setInventoryQty(String(item.purchased));
+                                    setEditConsumedQty(String(item.consumed));
+                                    setShowInventoryModal(true);
+                                  }}
+                                  className="bg-zinc-50 hover:bg-zinc-600 text-zinc-700 hover:text-white border border-zinc-200 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
+                                >
+                                  ✏️ 수정
+                                </button>
+                                <button
+                                  onClick={() => {
                                     if (confirm("정말 이 품목을 재고 목록에서 삭제하시겠습니까?")) {
                                       const updated = inventory.filter(x => x.id !== item.id);
                                       saveInventory(updated);
@@ -1393,18 +1412,20 @@ export default function AdminDashboard() {
                   <div>
                     <h3 className="text-base font-bold text-brand-brown font-serif">
                       {inventoryActionType === "create" && "➕ 신규 재고 품목 등록"}
+                      {inventoryActionType === "edit" && `✏️ [수정] ${selectedItem?.name}`}
                       {inventoryActionType === "add" && `📥 [입고] ${selectedItem?.name}`}
                       {inventoryActionType === "consume" && `📤 [출고] ${selectedItem?.name}`}
                     </h3>
                     <p className="text-[10px] text-brand-brown-light mt-0.5">
                       {inventoryActionType === "create" && "매장에서 사용하는 원자재/식재료 품목 정보를 새롭게 등록합니다."}
+                      {inventoryActionType === "edit" && "원부재료 정보 및 누적 재고 실사 조정을 수행합니다."}
                       {inventoryActionType === "add" && "새로 매입하거나 구매해 매장에 입고한 수량을 기록합니다."}
                       {inventoryActionType === "consume" && "판매나 유통기한 만료 등으로 매장에서 소진된 수량을 기록합니다."}
                     </p>
                   </div>
 
                   {/* Form fields */}
-                  {inventoryActionType === "create" ? (
+                  {inventoryActionType === "create" || inventoryActionType === "edit" ? (
                     <div className="space-y-3">
                       <div>
                         <label className="block text-[10px] font-bold text-brand-brown mb-1">품목명 *</label>
@@ -1465,27 +1486,44 @@ export default function AdminDashboard() {
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold text-brand-brown mb-1">초기 매입수량 (매입단위) *</label>
+                          <label className="block text-[10px] font-bold text-brand-brown mb-1">
+                            {inventoryActionType === "create" ? "초기 매입수량 (매입단위) *" : "누적 매입량 (세부단위) *"}
+                          </label>
                           <input
                             type="number"
                             required
-                            placeholder="예: 150"
+                            placeholder={inventoryActionType === "create" ? "예: 150" : "예: 3000"}
                             value={inventoryQty}
                             onChange={(e) => setInventoryQty(e.target.value)}
                             className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
                           />
                         </div>
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-brand-brown mb-1">안전 재고 기준 (세부단위) *</label>
-                        <input
-                          type="number"
-                          required
-                          placeholder="예: 400 (장)"
-                          value={newItemMinQty}
-                          onChange={(e) => setNewItemMinQty(e.target.value)}
-                          className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
-                        />
+                      <div className="grid grid-cols-2 gap-3">
+                        {inventoryActionType === "edit" && (
+                          <div>
+                            <label className="block text-[10px] font-bold text-brand-brown mb-1">누적 소진량 (세부단위) *</label>
+                            <input
+                              type="number"
+                              required
+                              placeholder="예: 2760"
+                              value={editConsumedQty}
+                              onChange={(e) => setEditConsumedQty(e.target.value)}
+                              className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                            />
+                          </div>
+                        )}
+                        <div className={inventoryActionType === "create" ? "w-full" : ""}>
+                          <label className="block text-[10px] font-bold text-brand-brown mb-1">안전 재고 기준 (세부단위) *</label>
+                          <input
+                            type="number"
+                            required
+                            placeholder="예: 400 (장)"
+                            value={newItemMinQty}
+                            onChange={(e) => setNewItemMinQty(e.target.value)}
+                            className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                          />
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1520,12 +1558,12 @@ export default function AdminDashboard() {
                     <button
                       onClick={() => {
                         const qty = parseFloat(inventoryQty);
-                        if (isNaN(qty) || qty <= 0) {
-                          alert("올바른 수량을 입력해 주세요.");
-                          return;
-                        }
                         
                         if (inventoryActionType === "create") {
+                          if (isNaN(qty) || qty <= 0) {
+                            alert("올바른 수량을 입력해 주세요.");
+                            return;
+                          }
                           if (!newItemName || !newItemBulkUnit || !newItemDetailUnit || !newItemFactor) {
                             alert("모든 필수 값을 입력해 주세요.");
                             return;
@@ -1551,7 +1589,54 @@ export default function AdminDashboard() {
                             unitPrice: isNaN(cost) ? 0 : cost
                           };
                           saveInventory([...inventory, newItem]);
+                          setShowInventoryModal(false);
+                        } else if (inventoryActionType === "edit") {
+                          const factor = parseFloat(newItemFactor);
+                          const cost = parseFloat(inventoryCost);
+                          const minQty = parseFloat(newItemMinQty);
+                          const purchasedDetail = parseFloat(inventoryQty);
+                          const consumedDetail = parseFloat(editConsumedQty);
+                          
+                          if (!newItemName || !newItemBulkUnit || !newItemDetailUnit || isNaN(factor) || factor <= 0) {
+                            alert("올바른 규격 정보를 입력해 주세요.");
+                            return;
+                          }
+                          if (isNaN(purchasedDetail) || purchasedDetail < 0) {
+                            alert("올바른 누적 매입량을 입력해 주세요.");
+                            return;
+                          }
+                          if (isNaN(consumedDetail) || consumedDetail < 0) {
+                            alert("올바른 누적 소진량을 입력해 주세요.");
+                            return;
+                          }
+                          if (consumedDetail > purchasedDetail) {
+                            alert("소진량이 매입량을 초과할 수 없습니다.");
+                            return;
+                          }
+
+                          const updated = inventory.map(item => {
+                            if (item.id === selectedItem.id) {
+                              return {
+                                ...item,
+                                name: newItemName,
+                                bulkUnit: `${newItemBulkUnit}(${factor}${newItemDetailUnit})`,
+                                detailUnit: newItemDetailUnit,
+                                conversionFactor: factor,
+                                purchased: purchasedDetail,
+                                consumed: consumedDetail,
+                                minQty: isNaN(minQty) ? item.minQty : minQty,
+                                unitPrice: isNaN(cost) ? item.unitPrice : cost
+                              };
+                            }
+                            return item;
+                          });
+                          saveInventory(updated);
+                          setShowInventoryModal(false);
                         } else {
+                          if (isNaN(qty) || qty <= 0) {
+                            alert("올바른 수량을 입력해 주세요.");
+                            return;
+                          }
                           const factor = selectedItem.conversionFactor;
                           const detailDelta = qty * factor;
 
@@ -1571,8 +1656,8 @@ export default function AdminDashboard() {
                             return item;
                           });
                           saveInventory(updated);
+                          setShowInventoryModal(false);
                         }
-                        setShowInventoryModal(false);
                       }}
                       className="bg-brand-green hover:bg-brand-green-hover text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-brand-green/10 cursor-pointer"
                     >

@@ -3,6 +3,7 @@ import { Noto_Sans_KR, Outfit } from "next/font/google";
 import Link from "next/link";
 import Header from "../components/common/Header";
 import "./globals.css";
+import PayPalProvider from "../components/providers/PayPalProvider";
 
 const noto = Noto_Sans_KR({
   subsets: ["latin"],
@@ -40,13 +41,14 @@ export default function RootLayout({
       className={`${noto.variable} ${outfit.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans bg-brand-beige text-brand-brown">
-        {/* Dynamic client-side GNB Header */}
-        <Header />
+        <PayPalProvider>
+          {/* Dynamic client-side GNB Header */}
+          <Header />
 
-        {/* Main Content Area */}
-        <main className="flex-grow">
-          {children}
-        </main>
+          {/* Main Content Area */}
+          <main className="flex-grow">
+            {children}
+          </main>
 
         {/* Footer */}
         <footer className="bg-brand-brown text-brand-beige py-12 border-t border-brand-green/10">
@@ -94,6 +96,7 @@ export default function RootLayout({
             </div>
           </div>
         </footer>
+        </PayPalProvider>
       </body>
     </html>
   );
