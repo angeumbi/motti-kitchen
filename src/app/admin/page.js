@@ -22,8 +22,19 @@ export default function AdminDashboard() {
   
   // Create item form states
   const [newItemName, setNewItemName] = useState("");
-  const [newItemUnit, setNewItemUnit] = useState("kg");
+  const [newItemBulkUnit, setNewItemBulkUnit] = useState("봉지");
+  const [newItemDetailUnit, setNewItemDetailUnit] = useState("장");
+  const [newItemFactor, setNewItemFactor] = useState("20");
   const [newItemMinQty, setNewItemMinQty] = useState(10);
+
+  // Recipe & Sales states
+  const [recipes, setRecipes] = useState([]);
+  const [salesHistory, setSalesHistory] = useState([]);
+  const [inventorySubTab, setInventorySubTab] = useState("status"); // "status" | "recipes" | "sales"
+  const [selectedMenuId, setSelectedMenuId] = useState("");
+  const [editingRecipeIngredients, setEditingRecipeIngredients] = useState([]);
+  const [saleMenuId, setSaleMenuId] = useState("");
+  const [saleQty, setSaleQty] = useState("1");
 
   // CMS lists state
   const [posts, setPosts] = useState([]);
@@ -116,24 +127,81 @@ export default function AdminDashboard() {
   }, []);
 
   const defaultInventory = [
-    { id: 1, name: "🥬 유기농 로메인 상추", unit: "kg", purchased: 120, consumed: 98, minQty: 15, unitPrice: 8500 },
-    { id: 2, name: "🥑 프리미엄 아보카도", unit: "개", purchased: 300, consumed: 260, minQty: 50, unitPrice: 2200 },
-    { id: 3, name: "🍗 닭가슴살 슬라이스", unit: "kg", purchased: 80, consumed: 72, minQty: 10, unitPrice: 12000 },
-    { id: 4, name: "🍞 100% 통밀 브레드", unit: "봉지", purchased: 150, consumed: 138, minQty: 20, unitPrice: 4500 },
-    { id: 5, name: "🧀 훈제 연어 슬라이스", unit: "kg", purchased: 40, consumed: 31, minQty: 8, unitPrice: 28000 },
-    { id: 6, name: "🍅 유기농 대추방울토마토", unit: "kg", purchased: 60, consumed: 48, minQty: 12, unitPrice: 9000 },
-    { id: 7, name: "🥛 수제 리코타 치즈", unit: "kg", purchased: 25, consumed: 22, minQty: 5, unitPrice: 15000 },
-    { id: 8, name: "🫒 스페인산 엑스트라버진 올리브오일", unit: "병", purchased: 30, consumed: 18, minQty: 5, unitPrice: 19500 },
+    { id: 1, name: "🥬 유기농 로메인 상추", bulkUnit: "박스(10kg)", detailUnit: "g", conversionFactor: 10000, purchased: 1200000, consumed: 980000, minQty: 150000, unitPrice: 85000 },
+    { id: 2, name: "🥑 프리미엄 아보카도", bulkUnit: "박스(24개)", detailUnit: "개", conversionFactor: 24, purchased: 300, consumed: 260, minQty: 50, unitPrice: 52800 },
+    { id: 3, name: "🍗 닭가슴살 슬라이스", bulkUnit: "팩(5kg)", detailUnit: "g", conversionFactor: 5000, purchased: 80000, consumed: 72000, minQty: 10000, unitPrice: 60000 },
+    { id: 4, name: "🍞 100% 통밀 브레드", bulkUnit: "봉지(20장)", detailUnit: "장", conversionFactor: 20, purchased: 150 * 20, consumed: 138 * 20, minQty: 20 * 20, unitPrice: 4500 },
+    { id: 5, name: "🧀 훈제 연어 슬라이스", bulkUnit: "팩(1kg)", detailUnit: "g", conversionFactor: 1000, purchased: 40000, consumed: 31000, minQty: 8000, unitPrice: 28000 },
+    { id: 6, name: "🍅 유기농 대추방울토마토", bulkUnit: "박스(5kg)", detailUnit: "g", conversionFactor: 5000, purchased: 60000, consumed: 48000, minQty: 12000, unitPrice: 45000 },
+    { id: 7, name: "🥛 수제 리코타 치즈", bulkUnit: "통(1kg)", detailUnit: "g", conversionFactor: 1000, purchased: 25000, consumed: 22000, minQty: 5000, unitPrice: 15000 },
+    { id: 8, name: "🫒 스페인산 엑스트라버진 올리브오일", bulkUnit: "병(1L)", detailUnit: "ml", conversionFactor: 1000, purchased: 30000, consumed: 18000, minQty: 5000, unitPrice: 19500 },
+  ];
+
+  const defaultRecipes = [
+    {
+      menuId: "1",
+      menuTitle: "클래식 아보카도 샌드위치",
+      ingredients: [
+        { inventoryId: 4, qty: 2 }, // 2 slices of bread
+        { inventoryId: 2, qty: 0.5 }, // 0.5 avocado
+        { inventoryId: 1, qty: 50 }, // 50g romaine
+      ]
+    },
+    {
+      menuId: "2",
+      menuTitle: "그릴드 치킨 포케",
+      ingredients: [
+        { inventoryId: 3, qty: 150 }, // 150g chicken
+        { inventoryId: 1, qty: 100 }, // 100g romaine
+        { inventoryId: 6, qty: 40 }, // 40g tomato
+      ]
+    }
   ];
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("local_inventory");
-      if (stored) {
-        setInventory(JSON.parse(stored));
+      // 1. Inventory
+      const storedInv = localStorage.getItem("local_inventory");
+      if (storedInv) {
+        const parsed = JSON.parse(storedInv);
+        if (parsed.length > 0 && parsed[0].unit) {
+          const migrated = parsed.map(item => ({
+            id: item.id,
+            name: item.name,
+            bulkUnit: item.unit === "봉지" ? "봉지(20장)" : item.unit === "개" ? "박스(24개)" : `박스(10${item.unit})`,
+            detailUnit: item.unit === "봉지" ? "장" : item.unit === "개" ? "개" : item.unit === "g" ? "g" : item.unit,
+            conversionFactor: item.unit === "봉지" ? 20 : item.unit === "개" ? 24 : 1,
+            purchased: item.purchased * (item.unit === "봉지" ? 20 : item.unit === "개" ? 24 : 1),
+            consumed: item.consumed * (item.unit === "봉지" ? 20 : item.unit === "개" ? 24 : 1),
+            minQty: item.minQty * (item.unit === "봉지" ? 20 : item.unit === "개" ? 24 : 1),
+            unitPrice: item.unitPrice
+          }));
+          localStorage.setItem("local_inventory", JSON.stringify(migrated));
+          setInventory(migrated);
+        } else {
+          setInventory(parsed);
+        }
       } else {
         localStorage.setItem("local_inventory", JSON.stringify(defaultInventory));
         setInventory(defaultInventory);
+      }
+
+      // 2. Recipes
+      const storedRecipes = localStorage.getItem("local_recipes");
+      if (storedRecipes) {
+        setRecipes(JSON.parse(storedRecipes));
+      } else {
+        localStorage.setItem("local_recipes", JSON.stringify(defaultRecipes));
+        setRecipes(defaultRecipes);
+      }
+
+      // 3. Sales History
+      const storedSales = localStorage.getItem("local_sales_history");
+      if (storedSales) {
+        setSalesHistory(JSON.parse(storedSales));
+      } else {
+        localStorage.setItem("local_sales_history", JSON.stringify([]));
+        setSalesHistory([]);
       }
     }
   }, []);
@@ -141,6 +209,105 @@ export default function AdminDashboard() {
   const saveInventory = (newInv) => {
     setInventory(newInv);
     localStorage.setItem("local_inventory", JSON.stringify(newInv));
+  };
+
+  const saveRecipes = (newRecipes) => {
+    setRecipes(newRecipes);
+    localStorage.setItem("local_recipes", JSON.stringify(newRecipes));
+  };
+
+  const saveSalesHistory = (newSales) => {
+    setSalesHistory(newSales);
+    localStorage.setItem("local_sales_history", JSON.stringify(newSales));
+  };
+
+  const handleSaveRecipe = () => {
+    if (!selectedMenuId) {
+      alert("레시피를 설정할 메뉴를 선택해 주세요.");
+      return;
+    }
+    const selectedPost = posts.find(p => String(p.id) === String(selectedMenuId));
+    const menuTitle = selectedPost ? selectedPost.title : "알 수 없는 메뉴";
+    
+    const existingIndex = recipes.findIndex(r => String(r.menuId) === String(selectedMenuId));
+    const newRecipe = {
+      menuId: String(selectedMenuId),
+      menuTitle: menuTitle,
+      ingredients: editingRecipeIngredients.map(ing => ({
+        inventoryId: parseInt(ing.inventoryId),
+        qty: parseFloat(ing.qty)
+      }))
+    };
+
+    let updatedRecipes = [...recipes];
+    if (existingIndex > -1) {
+      updatedRecipes[existingIndex] = newRecipe;
+    } else {
+      updatedRecipes.push(newRecipe);
+    }
+
+    saveRecipes(updatedRecipes);
+    alert(`[${menuTitle}] 레시피가 성공적으로 저장되었습니다!`);
+  };
+
+  const handleRecordSale = () => {
+    if (!saleMenuId) {
+      alert("판매할 메뉴를 선택해 주세요.");
+      return;
+    }
+    const qty = parseInt(saleQty);
+    if (isNaN(qty) || qty <= 0) {
+      alert("올바른 판매 수량을 입력해 주세요.");
+      return;
+    }
+
+    const recipe = recipes.find(r => String(r.menuId) === String(saleMenuId));
+    if (!recipe || !recipe.ingredients || recipe.ingredients.length === 0) {
+      alert("이 메뉴는 등록된 레시피(부재료 구성)가 없습니다. 레시피 설정 탭에서 먼저 레시피를 등록해 주세요!");
+      return;
+    }
+
+    // Verify stock
+    for (const ing of recipe.ingredients) {
+      const item = inventory.find(inv => inv.id === ing.inventoryId);
+      if (!item) continue;
+      const needed = ing.qty * qty;
+      const currentStock = item.purchased - item.consumed;
+      if (currentStock < needed) {
+        alert(`재고 부족으로 판매 처리가 불가합니다!\n부재료: ${item.name}\n필요량: ${needed} ${item.detailUnit}\n현재 재고: ${currentStock} ${item.detailUnit}`);
+        return;
+      }
+    }
+
+    // Deduct stock
+    const updatedInventory = inventory.map(item => {
+      const recipeIng = recipe.ingredients.find(ing => ing.inventoryId === item.id);
+      if (recipeIng) {
+        const needed = recipeIng.qty * qty;
+        return { ...item, consumed: item.consumed + needed };
+      }
+      return item;
+    });
+    saveInventory(updatedInventory);
+
+    // Record to sales history log
+    const newSaleLog = {
+      id: Date.now(),
+      menuId: String(saleMenuId),
+      menuTitle: recipe.menuTitle,
+      quantity: qty,
+      date: new Date().toISOString(),
+      deductedIngredients: recipe.ingredients.map(ing => {
+        const item = inventory.find(inv => inv.id === ing.inventoryId);
+        return {
+          name: item ? item.name : "알 수 없는 재료",
+          qty: ing.qty * qty,
+          unit: item ? item.detailUnit : ""
+        };
+      })
+    };
+    saveSalesHistory([newSaleLog, ...salesHistory]);
+    alert(`성공적으로 판매가 기록되고, 레시피에 의거해 재고가 자동으로 차감되었습니다!\n(메뉴: ${recipe.menuTitle} ${qty}개 판매)`);
   };
 
   async function fetchPosts() {
@@ -776,151 +943,447 @@ export default function AdminDashboard() {
         {/* ==================================================== */}
         {cmsTab === "inventory" && (
           <div className="space-y-8 animate-in fade-in duration-300">
-            {/* Inventory Overview Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-brand-green/10 shadow-xs flex flex-col justify-between h-[100px]">
-                <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">누적 매입액</span>
-                <span className="text-xl font-extrabold text-brand-brown">
-                  {inventory.reduce((acc, item) => acc + (item.purchased * item.unitPrice), 0).toLocaleString()}원
-                </span>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-brand-green/10 shadow-xs flex flex-col justify-between h-[100px]">
-                <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">누적 소진액</span>
-                <span className="text-xl font-extrabold text-brand-brown">
-                  {inventory.reduce((acc, item) => acc + (item.consumed * item.unitPrice), 0).toLocaleString()}원
-                </span>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-brand-green/10 shadow-xs flex flex-col justify-between h-[100px]">
-                <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">재고 자산 가치</span>
-                <span className="text-xl font-extrabold text-brand-green">
-                  {inventory.reduce((acc, item) => acc + ((item.purchased - item.consumed) * item.unitPrice), 0).toLocaleString()}원
-                </span>
-              </div>
-              {/* Warning Item Card */}
-              {(() => {
-                const warningCount = inventory.filter(item => (item.purchased - item.consumed) < item.minQty).length;
-                return (
-                  <div className={`p-5 rounded-2xl border shadow-xs flex flex-col justify-between h-[100px] transition-colors ${
-                    warningCount > 0 
-                      ? "bg-red-50/70 border-red-200 text-red-900" 
-                      : "bg-white border-brand-green/10 text-brand-brown"
-                  }`}>
-                    <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">재고 부족 품목</span>
-                    <span className="text-xl font-extrabold flex items-center gap-1.5">
-                      {warningCount > 0 ? `⚠️ ${warningCount}개 품목` : "🟢 지표 양호"}
+            {/* Sub Tabs Navigator */}
+            <div className="flex border-b border-zinc-200 gap-2 mb-4">
+              {[
+                { id: "status", label: "📋 재고 현황" },
+                { id: "recipes", label: "🥗 레시피 설정" },
+                { id: "sales", label: "📈 판매 기록 및 자동 차감" }
+              ].map((sub) => (
+                <button
+                  key={sub.id}
+                  onClick={() => {
+                    setInventorySubTab(sub.id);
+                    if (sub.id === "recipes") {
+                      if (selectedMenuId) {
+                        const existing = recipes.find(r => String(r.menuId) === String(selectedMenuId));
+                        setEditingRecipeIngredients(existing ? existing.ingredients : []);
+                      }
+                    }
+                  }}
+                  className={`px-4 py-2 text-xs font-bold border-b-2 transition-all ${
+                    inventorySubTab === sub.id
+                      ? "border-brand-green text-brand-green"
+                      : "border-transparent text-brand-brown-light hover:text-brand-brown"
+                  }`}
+                >
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Sub-tab 1: Inventory Status */}
+            {inventorySubTab === "status" && (
+              <div className="space-y-8 animate-in fade-in duration-200">
+                {/* Stats cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-2xl border border-brand-green/10 shadow-xs flex flex-col justify-between h-[100px]">
+                    <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">누적 매입액</span>
+                    <span className="text-xl font-extrabold text-brand-brown">
+                      {inventory.reduce((acc, item) => acc + (item.purchased * (item.unitPrice / item.conversionFactor)), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}원
                     </span>
                   </div>
-                );
-              })()}
-            </div>
+                  <div className="bg-white p-5 rounded-2xl border border-brand-green/10 shadow-xs flex flex-col justify-between h-[100px]">
+                    <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">누적 소진액</span>
+                    <span className="text-xl font-extrabold text-brand-brown">
+                      {inventory.reduce((acc, item) => acc + (item.consumed * (item.unitPrice / item.conversionFactor)), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}원
+                    </span>
+                  </div>
+                  <div className="bg-white p-5 rounded-2xl border border-brand-green/10 shadow-xs flex flex-col justify-between h-[100px]">
+                    <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">재고 자산 가치</span>
+                    <span className="text-xl font-extrabold text-brand-green">
+                      {inventory.reduce((acc, item) => acc + ((item.purchased - item.consumed) * (item.unitPrice / item.conversionFactor)), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}원
+                    </span>
+                  </div>
+                  {/* Warning count card */}
+                  {(() => {
+                    const warningCount = inventory.filter(item => (item.purchased - item.consumed) < item.minQty).length;
+                    return (
+                      <div className={`p-5 rounded-2xl border shadow-xs flex flex-col justify-between h-[100px] transition-colors ${
+                        warningCount > 0 
+                          ? "bg-red-50/70 border-red-200 text-red-900" 
+                          : "bg-white border-brand-green/10 text-brand-brown"
+                      }`}>
+                        <span className="text-[10px] font-bold text-brand-brown-light uppercase tracking-wider">재고 부족 품목</span>
+                        <span className="text-xl font-extrabold flex items-center gap-1.5">
+                          {warningCount > 0 ? `⚠️ ${warningCount}개 품목` : "🟢 지표 양호"}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
 
-            {/* Inventory List Card */}
-            <div className="p-6 rounded-2xl glass-card">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                <div>
+                {/* Inventory List */}
+                <div className="p-6 rounded-2xl glass-card">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                    <div>
+                      <h2 className="text-base font-bold text-brand-brown font-serif">
+                        📦 매장 원부재료 재고 현황
+                      </h2>
+                      <p className="text-[10px] text-brand-brown-light mt-0.5">
+                        매입 단량과 세부 단위(환산계수)를 입력하여, 매입 시에는 대형 단위로 기입하고 출고(소진) 시에는 레시피 장/g 수량으로 자동 차감되도록 지원합니다.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setInventoryActionType("create");
+                        setSelectedItem(null);
+                        setNewItemName("");
+                        setNewItemBulkUnit("봉지");
+                        setNewItemDetailUnit("장");
+                        setNewItemFactor("20");
+                        setNewItemMinQty(400);
+                        setInventoryCost("4500");
+                        setInventoryQty("");
+                        setShowInventoryModal(true);
+                      }}
+                      className="bg-brand-green hover:bg-brand-green-hover text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-brand-green/10 flex items-center gap-1 cursor-pointer"
+                    >
+                      ➕ 신규 재고 품목 등록
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-brand-green/10 text-brand-brown-light/80 font-bold text-left">
+                          <th className="pb-3 text-left">품목명</th>
+                          <th className="pb-3 text-left">매입 규격 (환산계수)</th>
+                          <th className="pb-3 text-right">매입 단가</th>
+                          <th className="pb-3 text-right">세부 단가</th>
+                          <th className="pb-3 text-right">총 매입량</th>
+                          <th className="pb-3 text-right">총 소진량</th>
+                          <th className="pb-3 text-right">현재 재고</th>
+                          <th className="pb-3 text-right">안전 재고</th>
+                          <th className="pb-3 text-center">재고 상태</th>
+                          <th className="pb-3 text-center">재고 조정</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100">
+                        {inventory.map((item) => {
+                          const currentStock = item.purchased - item.consumed;
+                          const isLowStock = currentStock < item.minQty;
+                          const bulkPrice = item.unitPrice;
+                          const detailPrice = item.unitPrice / item.conversionFactor;
+
+                          const displayPurchased = `${(item.purchased / item.conversionFactor).toFixed(1)} ${item.bulkUnit.split('(')[0]} (${item.purchased.toLocaleString()} ${item.detailUnit})`;
+                          const displayConsumed = `${item.consumed.toLocaleString()} ${item.detailUnit}`;
+                          const displayCurrent = `${(currentStock / item.conversionFactor).toFixed(1)} ${item.bulkUnit.split('(')[0]} (${currentStock.toLocaleString()} ${item.detailUnit})`;
+                          
+                          return (
+                            <tr key={item.id} className="hover:bg-brand-sage/20 transition-colors">
+                              <td className="py-4 font-bold text-brand-brown">{item.name}</td>
+                              <td className="py-4 text-brand-brown-light">
+                                1 {item.bulkUnit.split('(')[0]} = {item.conversionFactor} {item.detailUnit}
+                              </td>
+                              <td className="py-4 text-right text-brand-brown-light">{bulkPrice.toLocaleString()}원</td>
+                              <td className="py-4 text-right text-brand-brown-light/70">{detailPrice.toFixed(1)}원</td>
+                              <td className="py-4 text-right">{displayPurchased}</td>
+                              <td className="py-4 text-right text-brand-brown-light">{displayConsumed}</td>
+                              <td className="py-4 text-right font-extrabold text-brand-brown">
+                                {displayCurrent}
+                              </td>
+                              <td className="py-4 text-right text-brand-brown-light">{item.minQty.toLocaleString()} {item.detailUnit}</td>
+                              <td className="py-4 text-center">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
+                                  isLowStock 
+                                    ? "bg-red-100 text-red-800 border border-red-200" 
+                                    : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                }`}>
+                                  {isLowStock ? "⚠️ 부족" : "🟢 정상"}
+                                </span>
+                              </td>
+                              <td className="py-4 text-center space-x-2">
+                                <button
+                                  onClick={() => {
+                                    setInventoryActionType("add");
+                                    setSelectedItem(item);
+                                    setInventoryQty("");
+                                    setShowInventoryModal(true);
+                                  }}
+                                  className="bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
+                                >
+                                  📥 매입 입고
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setInventoryActionType("consume");
+                                    setSelectedItem(item);
+                                    setInventoryQty("");
+                                    setShowInventoryModal(true);
+                                  }}
+                                  className="bg-orange-50 hover:bg-orange-655 text-brand-orange hover:text-white border border-brand-orange/20 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
+                                >
+                                  📤 수동 출고
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (confirm("정말 이 품목을 재고 목록에서 삭제하시겠습니까?")) {
+                                      const updated = inventory.filter(x => x.id !== item.id);
+                                      saveInventory(updated);
+                                    }
+                                  }}
+                                  className="text-red-500 hover:text-red-750 p-1 text-[10px] cursor-pointer font-bold"
+                                >
+                                  삭제
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab 2: Recipe Config */}
+            {inventorySubTab === "recipes" && (
+              <div className="p-6 rounded-2xl glass-card space-y-6 animate-in fade-in duration-200">
+                <div className="border-b border-brand-green/10 pb-4">
                   <h2 className="text-base font-bold text-brand-brown font-serif">
-                    📦 매장 원부재료 재고 현황
+                    🥗 메뉴 레시피(부재료 구성) 설정
                   </h2>
                   <p className="text-[10px] text-brand-brown-light mt-0.5">
-                    매장의 부재료 매입량, 판매/출고로 인해 사라진 양, 그리고 현재 안전 재고 수준을 관리합니다.
+                    판매 시 자동으로 차감될 메뉴별 레시피를 구성합니다. 수량은 세부 단위(예: 식빵 2장 = 2)로 입력합니다.
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setInventoryActionType("create");
-                    setSelectedItem(null);
-                    setNewItemName("");
-                    setNewItemUnit("kg");
-                    setNewItemMinQty(10);
-                    setInventoryCost("");
-                    setInventoryQty("");
-                    setShowInventoryModal(true);
-                  }}
-                  className="bg-brand-green hover:bg-brand-green-hover text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-brand-green/10 flex items-center gap-1 cursor-pointer"
-                >
-                  ➕ 신규 재고 품목 등록
-                </button>
-              </div>
 
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-brand-green/10 text-brand-brown-light/80 font-bold text-left">
-                      <th className="pb-3 text-left">품목명</th>
-                      <th className="pb-3 text-right">매입 단가</th>
-                      <th className="pb-3 text-right">총 매입량</th>
-                      <th className="pb-3 text-right">총 소진량</th>
-                      <th className="pb-3 text-right">현재 재고</th>
-                      <th className="pb-3 text-right">안전 재고</th>
-                      <th className="pb-3 text-center">재고 상태</th>
-                      <th className="pb-3 text-center">재고 조정</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100">
-                    {inventory.map((item) => {
-                      const currentStock = item.purchased - item.consumed;
-                      const isLowStock = currentStock < item.minQty;
-                      return (
-                        <tr key={item.id} className="hover:bg-brand-sage/20 transition-colors">
-                          <td className="py-4 font-bold text-brand-brown">{item.name}</td>
-                          <td className="py-4 text-right text-brand-brown-light">{item.unitPrice.toLocaleString()}원</td>
-                          <td className="py-4 text-right">{item.purchased} {item.unit}</td>
-                          <td className="py-4 text-right text-brand-brown-light">{item.consumed} {item.unit}</td>
-                          <td className="py-4 text-right font-extrabold text-brand-brown">
-                            {currentStock} {item.unit}
-                          </td>
-                          <td className="py-4 text-right text-brand-brown-light">{item.minQty} {item.unit}</td>
-                          <td className="py-4 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
-                              isLowStock 
-                                ? "bg-red-100 text-red-800 border border-red-200" 
-                                : "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                            }`}>
-                              {isLowStock ? "⚠️ 부족" : "🟢 정상"}
-                            </span>
-                          </td>
-                          <td className="py-4 text-center space-x-2">
-                            <button
-                              onClick={() => {
-                                setInventoryActionType("add");
-                                setSelectedItem(item);
-                                setInventoryQty("");
-                                setShowInventoryModal(true);
-                              }}
-                              className="bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+                  {/* Left Side: Select Menu and Add Ingredient */}
+                  <div className="md:col-span-5 space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-brand-brown mb-1">1) 레시피를 설정할 메뉴 선택 *</label>
+                      <select
+                        value={selectedMenuId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedMenuId(val);
+                          const existing = recipes.find(r => String(r.menuId) === String(val));
+                          setEditingRecipeIngredients(existing ? existing.ingredients : []);
+                        }}
+                        className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white/70"
+                      >
+                        <option value="">-- 메뉴를 선택하세요 --</option>
+                        {posts.map(post => (
+                          <option key={post.id} value={post.id}>{post.title}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {selectedMenuId && (
+                      <div className="bg-brand-sage/20 p-4 rounded-xl border border-brand-green/10 space-y-4">
+                        <span className="text-[10px] font-bold text-brand-green block">➕ 원재료 추가</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[9px] font-semibold text-brand-brown mb-1">부재료 품목</label>
+                            <select
+                              id="addRecipeIngId"
+                              className="w-full px-3 py-2 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
                             >
-                              📥 입고(매입)
-                            </button>
-                            <button
-                              onClick={() => {
-                                setInventoryActionType("consume");
-                                setSelectedItem(item);
-                                setInventoryQty("");
-                                setShowInventoryModal(true);
-                              }}
-                              className="bg-orange-50 hover:bg-orange-655 text-brand-orange hover:text-white border border-brand-orange/20 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
-                            >
-                              📤 출고(소진)
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm("정말 이 품목을 재고 목록에서 삭제하시겠습니까?")) {
-                                  const updated = inventory.filter(x => x.id !== item.id);
-                                  saveInventory(updated);
-                                }
-                              }}
-                              className="text-red-500 hover:text-red-700 p-1 text-[10px] cursor-pointer font-bold"
-                            >
-                              삭제
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                              {inventory.map(item => (
+                                <option key={item.id} value={item.id}>{item.name} ({item.detailUnit})</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-semibold text-brand-brown mb-1">소요 수량 (세부 단위)</label>
+                            <div className="flex gap-2">
+                              <input
+                                id="addRecipeIngQty"
+                                type="number"
+                                step="any"
+                                placeholder="예: 2, 50"
+                                className="w-full px-3 py-2 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const selectEl = document.getElementById("addRecipeIngId");
+                                  const qtyEl = document.getElementById("addRecipeIngQty");
+                                  const ingId = parseInt(selectEl.value);
+                                  const qty = parseFloat(qtyEl.value);
+                                  
+                                  if (isNaN(qty) || qty <= 0) {
+                                    alert("올바른 수량을 입력하세요.");
+                                    return;
+                                  }
+                                  
+                                  const existingIndex = editingRecipeIngredients.findIndex(x => x.inventoryId === ingId);
+                                  let updated = [...editingRecipeIngredients];
+                                  if (existingIndex > -1) {
+                                    updated[existingIndex].qty += qty;
+                                  } else {
+                                    updated.push({ inventoryId: ingId, qty: qty });
+                                  }
+                                  setEditingRecipeIngredients(updated);
+                                  qtyEl.value = "";
+                                }}
+                                className="bg-brand-green hover:bg-brand-green-hover text-white px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                              >
+                                추가
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right Side: Current Recipe List */}
+                  <div className="md:col-span-7 space-y-4">
+                    <h3 className="text-xs font-bold text-brand-brown">
+                      🥗 {selectedMenuId ? `[${posts.find(p => String(p.id) === String(selectedMenuId))?.title}] 구성 재료` : "메뉴를 선택하면 레시피 구성이 여기에 표시됩니다."}
+                    </h3>
+                    
+                    {selectedMenuId && (
+                      <div className="border border-brand-green/10 rounded-xl overflow-hidden bg-white/50">
+                        {editingRecipeIngredients.length > 0 ? (
+                          <div className="divide-y divide-zinc-100 text-xs">
+                            {editingRecipeIngredients.map((ing, idx) => {
+                              const item = inventory.find(inv => inv.id === ing.inventoryId);
+                              return (
+                                <div key={idx} className="flex justify-between items-center p-3 hover:bg-brand-sage/10">
+                                  <span className="font-bold text-brand-brown">{item ? item.name : "알 수 없는 품목"}</span>
+                                  <div className="flex items-center gap-4">
+                                    <span className="font-semibold text-brand-green">
+                                      {ing.qty} {item ? item.detailUnit : ""}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = editingRecipeIngredients.filter((_, i) => i !== idx);
+                                        setEditingRecipeIngredients(updated);
+                                      }}
+                                      className="text-red-500 hover:text-red-750 font-bold cursor-pointer"
+                                    >
+                                      제거
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-8 text-center text-brand-brown-light/70 text-xs">
+                            이 메뉴에 구성된 레시피 재료가 없습니다. 좌측에서 재료를 추가해 주세요.
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {selectedMenuId && editingRecipeIngredients.length > 0 && (
+                      <button
+                        onClick={handleSaveRecipe}
+                        className="w-full bg-brand-green hover:bg-brand-green-hover text-white text-xs font-bold py-3 rounded-xl transition-all shadow-md shadow-brand-green/10 flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        💾 레시피 저장하기
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Sub-tab 3: Record Sales */}
+            {inventorySubTab === "sales" && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-in fade-in duration-200">
+                {/* Sale Input Form */}
+                <div className="lg:col-span-4 p-6 rounded-2xl glass-card space-y-6">
+                  <div>
+                    <h2 className="text-base font-bold text-brand-brown font-serif">
+                      📈 제품 판매(출고) 기록
+                    </h2>
+                    <p className="text-[10px] text-brand-brown-light mt-0.5">
+                      판매된 완제품의 수량을 등록합니다. 해당 제품의 레시피에 맞춰 원자재 재고가 자동으로 세분화되어 차감됩니다.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-brand-brown mb-1">판매 제품 선택 *</label>
+                      <select
+                        value={saleMenuId}
+                        onChange={(e) => setSaleMenuId(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                      >
+                        <option value="">-- 판매된 메뉴 선택 --</option>
+                        {recipes.map(recipe => (
+                          <option key={recipe.menuId} value={recipe.menuId}>{recipe.menuTitle}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-brand-brown mb-1">판매 수량 (개) *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={saleQty}
+                        onChange={(e) => setSaleQty(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleRecordSale}
+                      className="w-full bg-brand-green hover:bg-brand-green-hover text-white text-xs font-bold py-3 rounded-xl transition-all shadow-md shadow-brand-green/10 cursor-pointer"
+                    >
+                      📈 판매 등록 및 재고 차감 실행
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sales History Log */}
+                <div className="lg:col-span-8 p-6 rounded-2xl glass-card space-y-4">
+                  <h2 className="text-base font-bold text-brand-brown font-serif">
+                    📜 판매 기록 및 자동 재고 차감 이력 ({salesHistory.length}건)
+                  </h2>
+                  {salesHistory.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-brand-green/10 text-brand-brown-light/80 font-bold text-left">
+                            <th className="pb-3 text-left">판매 시간</th>
+                            <th className="pb-3 text-left">판매 메뉴</th>
+                            <th className="pb-3 text-right">수량</th>
+                            <th className="pb-3 text-left">차감된 부재료 내역 (세부단위)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100">
+                          {salesHistory.map((log) => (
+                            <tr key={log.id} className="hover:bg-brand-sage/20 transition-colors">
+                              <td className="py-4 text-brand-brown-light">
+                                {new Date(log.date).toLocaleTimeString("ko-KR", {
+                                  hour: "2-digit",
+                                  minute: "2-digit"
+                                })} ({new Date(log.date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })})
+                              </td>
+                              <td className="py-4 font-bold text-brand-brown">{log.menuTitle}</td>
+                              <td className="py-4 text-right font-semibold text-brand-green">{log.quantity}개</td>
+                              <td className="py-4 text-brand-brown-light">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {log.deductedIngredients.map((ing, idx) => (
+                                    <span key={ing.name + idx} className="bg-amber-50 text-amber-800 text-[10px] px-2 py-0.5 rounded-full border border-amber-100">
+                                      {ing.name}: {ing.qty.toFixed(1)} {ing.unit}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-brand-brown-light/70 text-xs bg-brand-sage/10 rounded-xl border border-dashed border-brand-green/10">
+                      등록된 판매 내역이 없습니다. 좌측에서 메뉴 판매를 기록해 보세요! 📈
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Inventory Adjustment Modal */}
             {showInventoryModal && (
@@ -948,74 +1411,101 @@ export default function AdminDashboard() {
                         <input
                           type="text"
                           required
-                          placeholder="예: 🥬 신선한 양상추"
+                          placeholder="예: 🍞 100% 통밀 브레드"
                           value={newItemName}
                           onChange={(e) => setNewItemName(e.target.value)}
                           className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <label className="block text-[10px] font-bold text-brand-brown mb-1">단위 *</label>
+                          <label className="block text-[9px] font-bold text-brand-brown mb-1">매입 단위 *</label>
                           <input
                             type="text"
                             required
-                            placeholder="예: kg, 개, 봉지"
-                            value={newItemUnit}
-                            onChange={(e) => setNewItemUnit(e.target.value)}
-                            className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                            placeholder="예: 봉지, 박스"
+                            value={newItemBulkUnit}
+                            onChange={(e) => setNewItemBulkUnit(e.target.value)}
+                            className="w-full px-3 py-2 border border-brand-green/15 text-[10px] rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold text-brand-brown mb-1">매입 단가 (원) *</label>
+                          <label className="block text-[9px] font-bold text-brand-brown mb-1">세부 단위 *</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="예: 장, 개, g"
+                            value={newItemDetailUnit}
+                            onChange={(e) => setNewItemDetailUnit(e.target.value)}
+                            className="w-full px-3 py-2 border border-brand-green/15 text-[10px] rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-bold text-brand-brown mb-1">환산계수 *</label>
                           <input
                             type="number"
                             required
-                            placeholder="예: 5000"
+                            placeholder="예: 20"
+                            value={newItemFactor}
+                            onChange={(e) => setNewItemFactor(e.target.value)}
+                            className="w-full px-3 py-2 border border-brand-green/15 text-[10px] rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-brand-brown mb-1">매입 단가 (원/매입단위) *</label>
+                          <input
+                            type="number"
+                            required
+                            placeholder="예: 4500"
                             value={inventoryCost}
                             onChange={(e) => setInventoryCost(e.target.value)}
                             className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
                           />
                         </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[10px] font-bold text-brand-brown mb-1">초기 입고량 *</label>
+                          <label className="block text-[10px] font-bold text-brand-brown mb-1">초기 매입수량 (매입단위) *</label>
                           <input
                             type="number"
                             required
-                            placeholder="예: 50"
+                            placeholder="예: 150"
                             value={inventoryQty}
                             onChange={(e) => setInventoryQty(e.target.value)}
                             className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
                           />
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-brand-brown mb-1">안전 재고 기준 *</label>
-                          <input
-                            type="number"
-                            required
-                            placeholder="예: 10"
-                            value={newItemMinQty}
-                            onChange={(e) => setNewItemMinQty(e.target.value)}
-                            className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
-                          />
-                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-brand-brown mb-1">안전 재고 기준 (세부단위) *</label>
+                        <input
+                          type="number"
+                          required
+                          placeholder="예: 400 (장)"
+                          value={newItemMinQty}
+                          onChange={(e) => setNewItemMinQty(e.target.value)}
+                          className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
+                        />
                       </div>
                     </div>
                   ) : (
                     <div>
                       <label className="block text-[10px] font-bold text-brand-brown mb-1">
-                        {inventoryActionType === "add" ? "입고(매입)할 수량" : "출고(소진)할 수량"} ({selectedItem?.unit}) *
+                        {inventoryActionType === "add" ? "매입 입고량" : "수동 출고량"} ({selectedItem?.bulkUnit.split('(')[0]}) *
                       </label>
                       <input
                         type="number"
                         required
-                        placeholder={`예: 10 (${selectedItem?.unit})`}
+                        placeholder={`예: 3 (${selectedItem?.bulkUnit.split('(')[0]})`}
                         value={inventoryQty}
                         onChange={(e) => setInventoryQty(e.target.value)}
                         className="w-full px-3 py-2.5 border border-brand-green/15 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-green bg-white"
                       />
+                      {inventoryQty && !isNaN(parseFloat(inventoryQty)) && (
+                        <div className="text-[10px] text-brand-green font-semibold mt-1">
+                          ↳ 환산량: {parseFloat(inventoryQty) * selectedItem?.conversionFactor} {selectedItem?.detailUnit} 이 자동으로 {inventoryActionType === "add" ? "추가" : "감소"}됩니다.
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1036,31 +1526,43 @@ export default function AdminDashboard() {
                         }
                         
                         if (inventoryActionType === "create") {
-                          if (!newItemName || !newItemUnit) {
+                          if (!newItemName || !newItemBulkUnit || !newItemDetailUnit || !newItemFactor) {
                             alert("모든 필수 값을 입력해 주세요.");
                             return;
                           }
+                          const factor = parseFloat(newItemFactor);
                           const cost = parseFloat(inventoryCost);
                           const minQty = parseFloat(newItemMinQty);
+                          
+                          if (isNaN(factor) || factor <= 0) {
+                            alert("올바른 환산계수를 입력해 주세요.");
+                            return;
+                          }
+
                           const newItem = {
                             id: Date.now(),
                             name: newItemName,
-                            unit: newItemUnit,
-                            purchased: qty,
+                            bulkUnit: `${newItemBulkUnit}(${factor}${newItemDetailUnit})`,
+                            detailUnit: newItemDetailUnit,
+                            conversionFactor: factor,
+                            purchased: qty * factor,
                             consumed: 0,
                             minQty: isNaN(minQty) ? 10 : minQty,
                             unitPrice: isNaN(cost) ? 0 : cost
                           };
                           saveInventory([...inventory, newItem]);
                         } else {
+                          const factor = selectedItem.conversionFactor;
+                          const detailDelta = qty * factor;
+
                           const updated = inventory.map(item => {
                             if (item.id === selectedItem.id) {
                               if (inventoryActionType === "add") {
-                                return { ...item, purchased: item.purchased + qty };
+                                return { ...item, purchased: item.purchased + detailDelta };
                               } else {
-                                const newConsumed = item.consumed + qty;
+                                const newConsumed = item.consumed + detailDelta;
                                 if (newConsumed > item.purchased) {
-                                  alert(`소진량이 전체 입고량(${item.purchased} ${item.unit})을 초과할 수 없습니다.`);
+                                  alert(`소진량이 전체 입고량(${item.purchased / factor} ${item.bulkUnit.split('(')[0]})을 초과할 수 없습니다.`);
                                   return item;
                                 }
                                 return { ...item, consumed: newConsumed };
